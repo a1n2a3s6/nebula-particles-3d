@@ -1,0 +1,1277 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Nebula Particles 3D — Interactive Particle Morphing Playground</title>
+
+  <!-- Google Fonts: Space Grotesk & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            display: ['Space Grotesk', 'system-ui', 'sans-serif'],
+          },
+          colors: {
+            space: '#05050a',
+          },
+        },
+      },
+    };
+  </script>
+
+  <!-- Three.js ES Modules Import Map (jsDelivr CDN) -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+      }
+    }
+  </script>
+
+  <style>
+    /* Base reset & canvas layout */
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #05050a;
+      color: #f8fafc;
+      -webkit-font-smoothing: antialiased;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    #canvas-container {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      touch-action: none;
+    }
+
+    #canvas-container canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      outline: none;
+    }
+
+    /* Custom sleek range sliders */
+    input[type="range"].nebula-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 5px;
+      border-radius: 9999px;
+      background: rgba(255, 255, 255, 0.12);
+      outline: none;
+      transition: background 0.2s ease;
+    }
+
+    input[type="range"].nebula-slider:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    input[type="range"].nebula-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #ffffff;
+      box-shadow: 0 0 12px rgba(0, 240, 255, 0.65);
+      cursor: pointer;
+      border: 2px solid rgba(5, 5, 10, 0.85);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    input[type="range"].nebula-slider::-webkit-slider-thumb:hover {
+      transform: scale(1.18);
+      box-shadow: 0 0 16px rgba(0, 240, 255, 0.9);
+    }
+
+    input[type="range"].nebula-slider::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #ffffff;
+      box-shadow: 0 0 12px rgba(0, 240, 255, 0.65);
+      cursor: pointer;
+      border: 2px solid rgba(5, 5, 10, 0.85);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    /* Custom subtle scrollbar for small viewports */
+    .panel-scroll::-webkit-scrollbar {
+      width: 4px;
+    }
+    .panel-scroll::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .panel-scroll::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 9999px;
+    }
+
+    /* Glassmorphic panel transitions */
+    .hud-fade {
+      transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1), transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .hud-hidden {
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(-8px) scale(0.98);
+    }
+
+    /* Collapsible body transition */
+    .panel-body {
+      transition: max-height 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+    .panel-body.collapsed {
+      max-height: 0 !important;
+      opacity: 0;
+      pointer-events: none;
+      padding-top: 0 !important;
+      padding-bottom: 0 !important;
+    }
+  </style>
+</head>
+<body class="bg-space text-slate-100 font-sans antialiased selection:bg-cyan-500/30">
+
+  <!-- Full-Screen 3D WebGL Container -->
+  <div id="canvas-container" aria-label="Interactive 3D Nebula Particle Canvas"></div>
+
+  <!-- WebGL Error Fallback Message Box (hidden unless WebGL fails) -->
+  <div id="webgl-error" class="hidden fixed inset-0 z-50 flex items-center justify-center p-6 bg-space/95 backdrop-blur-md">
+    <div class="max-w-md w-full rounded-2xl bg-slate-900/90 border border-white/10 p-6 text-center shadow-2xl">
+      <div class="w-12 h-12 mx-auto mb-4 rounded-full bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+        </svg>
+      </div>
+      <h2 class="font-display text-lg font-semibold text-white mb-2">WebGL Unavailable</h2>
+      <p id="webgl-error-msg" class="text-sm text-slate-400 leading-relaxed">
+        Your browser or device does not support WebGL rendering required for Nebula Particles 3D. Please try a modern browser with hardware acceleration enabled.
+      </p>
+    </div>
+  </div>
+
+  <!-- Top-Left Minimalist Branding Badge -->
+  <header id="brand-badge" class="hud-fade fixed top-4 left-4 sm:top-6 sm:left-6 z-20 pointer-events-none max-w-[calc(100vw-6rem)]">
+    <div class="inline-flex flex-col gap-1 px-4 py-3 rounded-2xl bg-[#0a0c14]/60 backdrop-blur-xl border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.45)]">
+      <div class="flex items-center gap-2.5">
+        <span class="relative flex h-2.5 w-2.5 shrink-0">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-400"></span>
+        </span>
+        <h1 class="font-display text-sm sm:text-base font-bold tracking-[0.14em] text-white uppercase leading-none">
+          Nebula Particles <span class="text-cyan-400">3D</span>
+        </h1>
+      </div>
+      <div class="flex items-center gap-2 pl-5">
+        <span id="active-shape-index" class="font-display text-[11px] font-semibold text-cyan-300/90 tracking-wider">01</span>
+        <span class="text-white/20 text-xs">/</span>
+        <span id="active-shape-name" class="text-xs font-medium text-slate-200 tracking-wide">Spiral Galaxy</span>
+      </div>
+      <p class="hidden sm:block pl-5 pt-0.5 text-[11px] text-slate-400/90 tracking-wide">
+        Drag to orbit &bull; Scroll to zoom &bull; Hover to interact
+      </p>
+    </div>
+  </header>
+
+  <!-- Top-Right Collapsible Glassmorphic Control Panel -->
+  <aside id="control-panel" class="hud-fade fixed top-4 right-4 sm:top-6 sm:right-6 z-20 w-[calc(100vw-2rem)] max-w-[300px] sm:w-[300px] rounded-2xl bg-[#0a0c14]/72 backdrop-blur-xl border border-white/10 shadow-[0_16px_48px_rgba(0,0,0,0.6)] overflow-hidden">
+
+    <!-- Panel Header -->
+    <div class="flex items-center justify-between px-4 py-3 border-b border-white/[0.08]">
+      <div class="flex items-center gap-2">
+        <span class="font-display text-xs font-semibold tracking-[0.12em] uppercase text-slate-200">Controls</span>
+        <!-- Live FPS Badge -->
+        <span id="fps-badge" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-500/25">
+          <span id="fps-dot" class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+          <span id="fps-value">60</span> FPS
+        </span>
+      </div>
+
+      <div class="flex items-center gap-1">
+        <!-- Zen Mode (Hide UI) Icon Button -->
+        <button id="btn-zen-mode" type="button" title="Zen Mode (Press H)" aria-label="Hide UI (Zen Mode)"
+          class="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors focus:outline-none focus:ring-1 focus:ring-cyan-400/60">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
+          </svg>
+        </button>
+
+        <!-- Collapse / Expand Toggle Button -->
+        <button id="btn-collapse" type="button" title="Collapse / Expand Panel" aria-label="Toggle Control Panel"
+          class="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors focus:outline-none focus:ring-1 focus:ring-cyan-400/60">
+          <svg id="collapse-icon" class="w-4 h-4 transition-transform duration-300" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Collapsible Panel Content -->
+    <div id="panel-body" class="panel-body panel-scroll max-h-[calc(100vh-8rem)] px-4 py-3.5 space-y-4">
+
+      <!-- Section 1: 3D Formations -->
+      <div>
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-[11px] font-medium uppercase tracking-[0.1em] text-slate-400">Formation</span>
+          <span class="text-[10px] text-slate-500 font-mono">Keys 1–5</span>
+        </div>
+
+        <div id="shape-buttons" class="grid grid-cols-1 gap-1.5">
+          <!-- Buttons populated cleanly via HTML for instant paint -->
+          <button data-shape="galaxy" type="button" class="shape-btn group flex items-center justify-between w-full px-3 py-2 rounded-xl text-left text-xs font-medium border transition-all duration-200">
+            <span class="flex items-center gap-2.5">
+              <svg class="w-4 h-4 shrink-0 opacity-85" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="2.2" />
+                <path stroke-linecap="round" d="M12 12c3-4 8-3 8 1s-5 6-10 4M12 12c-3 4-8 3-8-1s5-6 10-4" />
+              </svg>
+              <span>Spiral Galaxy</span>
+            </span>
+            <span class="text-[10px] font-mono opacity-50 group-hover:opacity-90">1</span>
+          </button>
+
+          <button data-shape="dna" type="button" class="shape-btn group flex items-center justify-between w-full px-3 py-2 rounded-xl text-left text-xs font-medium border transition-all duration-200">
+            <span class="flex items-center gap-2.5">
+              <svg class="w-4 h-4 shrink-0 opacity-85" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                <path stroke-linecap="round" d="M7 3c0 4.5 10 4.5 10 9s-10 4.5-10 9M17 3c0 4.5-10 4.5-10 9s10 4.5 10 9M8.5 7.5h7M8.5 16.5h7" />
+              </svg>
+              <span>DNA Double Helix</span>
+            </span>
+            <span class="text-[10px] font-mono opacity-50 group-hover:opacity-90">2</span>
+          </button>
+
+          <button data-shape="saturn" type="button" class="shape-btn group flex items-center justify-between w-full px-3 py-2 rounded-xl text-left text-xs font-medium border transition-all duration-200">
+            <span class="flex items-center gap-2.5">
+              <svg class="w-4 h-4 shrink-0 opacity-85" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="4.5" />
+                <ellipse cx="12" cy="12" rx="10" ry="3.2" transform="rotate(-22 12 12)" />
+              </svg>
+              <span>Saturn &amp; Rings</span>
+            </span>
+            <span class="text-[10px] font-mono opacity-50 group-hover:opacity-90">3</span>
+          </button>
+
+          <button data-shape="torusKnot" type="button" class="shape-btn group flex items-center justify-between w-full px-3 py-2 rounded-xl text-left text-xs font-medium border transition-all duration-200">
+            <span class="flex items-center gap-2.5">
+              <svg class="w-4 h-4 shrink-0 opacity-85" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5c4.5 0 7.5 3 7.5 7.5s-3 7.5-7.5 7.5-7.5-3-7.5-7.5 3-7.5 7.5-7.5zm0 3.2c2.5 0 4.3 1.8 4.3 4.3s-1.8 4.3-4.3 4.3-4.3-1.8-4.3-4.3 1.8-4.3 4.3-4.3z" />
+              </svg>
+              <span>Torus Knot</span>
+            </span>
+            <span class="text-[10px] font-mono opacity-50 group-hover:opacity-90">4</span>
+          </button>
+
+          <button data-shape="sphere" type="button" class="shape-btn group flex items-center justify-between w-full px-3 py-2 rounded-xl text-left text-xs font-medium border transition-all duration-200">
+            <span class="flex items-center gap-2.5">
+              <svg class="w-4 h-4 shrink-0 opacity-85" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="8" />
+                <ellipse cx="12" cy="12" rx="3.5" ry="8" />
+                <path d="M4.5 12h15" />
+              </svg>
+              <span>Cosmic Sphere</span>
+            </span>
+            <span class="text-[10px] font-mono opacity-50 group-hover:opacity-90">5</span>
+          </button>
+        </div>
+
+        <!-- Auto-Morph Toggle & Progress Bar -->
+        <div class="mt-2.5 p-2.5 rounded-xl bg-white/[0.03] border border-white/[0.07]">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-medium text-slate-200">Auto-Morph</span>
+              <span id="automorph-badge" class="hidden px-1.5 py-0.5 rounded text-[9px] font-mono uppercase tracking-wider bg-cyan-500/20 text-cyan-300 border border-cyan-400/30">5s</span>
+            </div>
+            <button id="toggle-automorph" type="button" role="switch" aria-checked="false" aria-label="Toggle Auto-Morph"
+              class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border border-white/15 bg-white/10 transition-colors duration-200 focus:outline-none focus:ring-1 focus:ring-cyan-400/60">
+              <span id="toggle-automorph-knob" class="pointer-events-none inline-block h-4 w-4 translate-x-0.5 translate-y-[1px] rounded-full bg-slate-300 shadow transition-transform duration-200"></span>
+            </button>
+          </div>
+          <!-- Progress Bar -->
+          <div class="mt-2 h-1 w-full rounded-full bg-white/[0.06] overflow-hidden">
+            <div id="automorph-progress" class="h-full w-0 rounded-full bg-gradient-to-r from-cyan-400 to-purple-500 transition-[width] duration-75 ease-linear"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Divider -->
+      <div class="h-px bg-white/[0.07]"></div>
+
+      <!-- Section 2: Color Palettes -->
+      <div>
+        <span class="block text-[11px] font-medium uppercase tracking-[0.1em] text-slate-400 mb-2">Color Palette</span>
+        <div id="palette-buttons" class="grid grid-cols-2 gap-1.5">
+          <button data-palette="cyber" type="button" class="palette-btn flex items-center gap-2 px-2.5 py-2 rounded-xl text-left text-[11px] font-medium border transition-all duration-200">
+            <span class="w-4 h-4 rounded-full shrink-0 border border-white/25 shadow-sm" style="background: linear-gradient(135deg, #00f0ff 0%, #9d00ff 100%);"></span>
+            <span class="truncate">Cyber</span>
+          </button>
+
+          <button data-palette="solar" type="button" class="palette-btn flex items-center gap-2 px-2.5 py-2 rounded-xl text-left text-[11px] font-medium border transition-all duration-200">
+            <span class="w-4 h-4 rounded-full shrink-0 border border-white/25 shadow-sm" style="background: linear-gradient(135deg, #ffcf33 0%, #ff1e56 100%);"></span>
+            <span class="truncate">Solar</span>
+          </button>
+
+          <button data-palette="aurora" type="button" class="palette-btn flex items-center gap-2 px-2.5 py-2 rounded-xl text-left text-[11px] font-medium border transition-all duration-200">
+            <span class="w-4 h-4 rounded-full shrink-0 border border-white/25 shadow-sm" style="background: linear-gradient(135deg, #00ffaa 0%, #0066ff 100%);"></span>
+            <span class="truncate">Aurora</span>
+          </button>
+
+          <button data-palette="starlight" type="button" class="palette-btn flex items-center gap-2 px-2.5 py-2 rounded-xl text-left text-[11px] font-medium border transition-all duration-200">
+            <span class="w-4 h-4 rounded-full shrink-0 border border-white/25 shadow-sm" style="background: linear-gradient(135deg, #ffffff 0%, #6b7b9e 100%);"></span>
+            <span class="truncate">Starlight</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Divider -->
+      <div class="h-px bg-white/[0.07]"></div>
+
+      <!-- Section 3: Sliders -->
+      <div class="space-y-3">
+        <!-- Rotation Speed -->
+        <div>
+          <div class="flex items-center justify-between mb-1.5">
+            <label for="slider-rotation" class="text-[11px] font-medium text-slate-300">Rotation Speed</label>
+            <span id="val-rotation" class="text-[11px] font-mono text-cyan-300">0.6x</span>
+          </div>
+          <input id="slider-rotation" type="range" min="0" max="3" step="0.1" value="0.6" class="nebula-slider" />
+        </div>
+
+        <!-- Particle Size -->
+        <div>
+          <div class="flex items-center justify-between mb-1.5">
+            <label for="slider-size" class="text-[11px] font-medium text-slate-300">Particle Size</label>
+            <span id="val-size" class="text-[11px] font-mono text-cyan-300">1.6</span>
+          </div>
+          <input id="slider-size" type="range" min="0.5" max="3.5" step="0.1" value="1.6" class="nebula-slider" />
+        </div>
+      </div>
+
+      <!-- Footer: Zen Mode Button -->
+      <div class="pt-1">
+        <button id="btn-zen-footer" type="button"
+          class="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-medium text-slate-300 bg-white/[0.04] hover:bg-white/[0.1] hover:text-white border border-white/10 transition-all duration-200">
+          <span>Hide UI (Zen Mode)</span>
+          <kbd class="px-1.5 py-0.5 text-[10px] font-mono rounded bg-white/10 text-slate-400">H</kbd>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Floating "Show UI" Pill (visible only in Zen Mode) -->
+  <button id="btn-show-ui" type="button"
+    class="hud-fade hud-hidden fixed top-4 right-4 sm:top-6 sm:right-6 z-30 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#0a0c14]/75 backdrop-blur-xl border border-white/15 text-xs font-medium text-slate-200 hover:text-white hover:border-cyan-400/50 hover:bg-[#0a0c14]/90 shadow-xl transition-all duration-200">
+    <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+      <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
+    <span>Show UI</span>
+    <kbd class="px-1.5 py-0.5 text-[10px] font-mono rounded bg-white/10 text-slate-400">H</kbd>
+  </button>
+
+  <!-- Main Three.js Application Logic -->
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    /**
+     * =========================================================================
+     * NEBULA PARTICLES 3D — Core Configuration & State
+     * =========================================================================
+     */
+    const PARTICLE_COUNT = 15000;
+    const BG_STAR_COUNT = 1400;
+    const AUTO_MORPH_INTERVAL = 5.0; // seconds
+
+    const SHAPE_ORDER = ['galaxy', 'dna', 'saturn', 'torusKnot', 'sphere'];
+
+    const SHAPE_META = {
+      galaxy:    { index: '01', name: 'Spiral Galaxy' },
+      dna:       { index: '02', name: 'DNA Double Helix' },
+      saturn:    { index: '03', name: 'Saturn & Rings' },
+      torusKnot: { index: '04', name: 'Torus Knot' },
+      sphere:    { index: '05', name: 'Cosmic Sphere' },
+    };
+
+    const PALETTES = {
+      cyber: {
+        primary:   new THREE.Color('#00f0ff'),
+        secondary: new THREE.Color('#9d00ff'),
+        accent:    new THREE.Color('#ffffff'),
+      },
+      solar: {
+        primary:   new THREE.Color('#ffcf33'),
+        secondary: new THREE.Color('#ff1e56'),
+        accent:    new THREE.Color('#fff3b0'),
+      },
+      aurora: {
+        primary:   new THREE.Color('#00ffaa'),
+        secondary: new THREE.Color('#0066ff'),
+        accent:    new THREE.Color('#b8ffea'),
+      },
+      starlight: {
+        primary:   new THREE.Color('#ffffff'),
+        secondary: new THREE.Color('#6b7b9e'),
+        accent:    new THREE.Color('#d8e4ff'),
+      },
+    };
+
+    const state = {
+      currentShape: 'galaxy',
+      currentPalette: 'cyber',
+      rotationSpeed: 0.6,
+      particleSize: 1.6,
+      autoMorph: false,
+      autoMorphTimer: 0,
+      zenMode: false,
+      panelCollapsed: false,
+      pointerActive: false,
+    };
+
+    /**
+     * =========================================================================
+     * Procedural Soft Radial Glow Texture Generator
+     * =========================================================================
+     */
+    function createGlowTexture() {
+      const size = 128;
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+
+      const center = size / 2;
+      const grad = ctx.createRadialGradient(center, center, 0, center, center, center);
+      grad.addColorStop(0.0, 'rgba(255, 255, 255, 1.0)');
+      grad.addColorStop(0.18, 'rgba(255, 255, 255, 0.88)');
+      grad.addColorStop(0.45, 'rgba(255, 255, 255, 0.28)');
+      grad.addColorStop(0.75, 'rgba(255, 255, 255, 0.06)');
+      grad.addColorStop(1.0, 'rgba(255, 255, 255, 0.0)');
+
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, size, size);
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.needsUpdate = true;
+      return texture;
+    }
+
+    /**
+     * =========================================================================
+     * Mathematical 3D Formation Generators
+     * Each returns:
+     *   - positions: Float32Array(PARTICLE_COUNT * 3)
+     *   - gradFactors: Float32Array(PARTICLE_COUNT) in [0, 1] (primary -> secondary)
+     *   - accentFactors: Float32Array(PARTICLE_COUNT) in [0, 1] (blend toward core accent)
+     * =========================================================================
+     */
+
+    // Helper: Gaussian-like random in [-1, 1]
+    function gaussianRand() {
+      return ((Math.random() + Math.random() + Math.random()) / 3 - 0.5) * 2;
+    }
+
+    // 1. Spiral Galaxy (4 logarithmic arms + dense core + tapered disk)
+    function generateSpiralGalaxy(count) {
+      const positions = new Float32Array(count * 3);
+      const gradFactors = new Float32Array(count);
+      const accentFactors = new Float32Array(count);
+
+      const arms = 4;
+      const maxRadius = 14.5;
+      const coreCount = Math.floor(count * 0.14);
+
+      for (let i = 0; i < count; i++) {
+        const i3 = i * 3;
+        if (i < coreCount) {
+          // Dense luminous galactic bulge/core
+          const r = Math.pow(Math.random(), 2.2) * 3.0;
+          const theta = Math.random() * Math.PI * 2;
+          const phi = Math.acos(2 * Math.random() - 1);
+          positions[i3]     = r * Math.sin(phi) * Math.cos(theta);
+          positions[i3 + 1] = r * Math.cos(phi) * 0.55; // slightly oblate core
+          positions[i3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+
+          gradFactors[i] = Math.min(1, r / 4.0) * 0.25;
+          accentFactors[i] = Math.max(0, 1.0 - r / 2.6) * 0.85;
+        } else {
+          // 4 Logarithmic spiral arms
+          const armIndex = i % arms;
+          const t = Math.pow(Math.random(), 1.35); // denser near center
+          const radius = 0.8 + t * (maxRadius - 0.8);
+
+          // Logarithmic spiral twist
+          const spiralAngle = 2.65 * Math.log(radius + 0.85);
+          const armOffset = (armIndex / arms) * Math.PI * 2;
+
+          // Arm scatter widens slightly with radius
+          const angularSpread = gaussianRand() * (0.28 + t * 0.42);
+          const angle = armOffset + spiralAngle + angularSpread;
+
+          // Vertical disk thickness tapers exponentially outward
+          const diskHeight = (0.95 * Math.exp(-radius * 0.18) + 0.12) * gaussianRand() * 1.8;
+
+          positions[i3]     = Math.cos(angle) * radius;
+          positions[i3 + 1] = diskHeight;
+          positions[i3 + 2] = Math.sin(angle) * radius;
+
+          gradFactors[i] = Math.min(1, Math.max(0, t + gaussianRand() * 0.08));
+          accentFactors[i] = Math.max(0, (1 - t * 2.2)) * 0.55;
+        }
+      }
+      return { positions, gradFactors, accentFactors };
+    }
+
+    // 2. DNA Double Helix (twin twisted strands + base-pair connecting rungs)
+    function generateDNAHelix(count) {
+      const positions = new Float32Array(count * 3);
+      const gradFactors = new Float32Array(count);
+      const accentFactors = new Float32Array(count);
+
+      const height = 21.0;
+      const radius = 3.8;
+      const turns = 2.65;
+      const strandCount = Math.floor(count * 0.40); // 40% strand A, 40% strand B, 20% rungs
+      const rungCount = 26;
+
+      for (let i = 0; i < count; i++) {
+        const i3 = i * 3;
+        if (i < strandCount * 2) {
+          const isStrandB = i >= strandCount;
+          const u = Math.random();
+          const y = (u - 0.5) * height;
+          const theta = u * Math.PI * 2 * turns + (isStrandB ? Math.PI : 0);
+
+          // Volumetric tube thickness around backbone
+          const tubeR = Math.pow(Math.random(), 0.7) * 0.52;
+          const tubeA = Math.random() * Math.PI * 2;
+
+          const bx = Math.cos(theta) * radius;
+          const bz = Math.sin(theta) * radius;
+
+          positions[i3]     = bx + Math.cos(tubeA) * tubeR;
+          positions[i3 + 1] = y + gaussianRand() * 0.28;
+          positions[i3 + 2] = bz + Math.sin(tubeA) * tubeR;
+
+          gradFactors[i] = isStrandB ? (0.78 + Math.random() * 0.22) : (Math.random() * 0.22);
+          accentFactors[i] = tubeR < 0.18 ? 0.55 : 0.1;
+        } else {
+          // Base-pair connecting rungs
+          const rungIdx = i % rungCount;
+          const u = (rungIdx + 0.5) / rungCount;
+          const y = (u - 0.5) * height;
+          const theta = u * Math.PI * 2 * turns;
+
+          const ax = Math.cos(theta) * radius;
+          const az = Math.sin(theta) * radius;
+          const bx = Math.cos(theta + Math.PI) * radius;
+          const bz = Math.sin(theta + Math.PI) * radius;
+
+          const lerpT = Math.random();
+          positions[i3]     = ax + (bx - ax) * lerpT + gaussianRand() * 0.14;
+          positions[i3 + 1] = y + gaussianRand() * 0.14;
+          positions[i3 + 2] = az + (bz - az) * lerpT + gaussianRand() * 0.14;
+
+          gradFactors[i] = lerpT;
+          // Brighter hydrogen-bond glow near the center of each rung
+          accentFactors[i] = (1 - Math.abs(lerpT - 0.5) * 2) * 0.65;
+        }
+      }
+      return { positions, gradFactors, accentFactors };
+    }
+
+    // 3. Saturn & Rings (35% central planet sphere + 65% tilted concentric rings with Cassini gap)
+    function generateSaturnRings(count) {
+      const positions = new Float32Array(count * 3);
+      const gradFactors = new Float32Array(count);
+      const accentFactors = new Float32Array(count);
+
+      const sphereCount = Math.floor(count * 0.35);
+      const planetRadius = 4.2;
+      const tiltAngle = 26.7 * (Math.PI / 180);
+      const cosTilt = Math.cos(tiltAngle);
+      const sinTilt = Math.sin(tiltAngle);
+
+      for (let i = 0; i < count; i++) {
+        const i3 = i * 3;
+        let x, y, z;
+
+        if (i < sphereCount) {
+          // Central planet sphere (mostly atmospheric shell + subtle inner core)
+          const isCore = Math.random() < 0.12;
+          const r = isCore
+            ? Math.pow(Math.random(), 0.5) * planetRadius * 0.78
+            : planetRadius * (0.94 + Math.random() * 0.06);
+
+          const u = Math.random();
+          const v = Math.random();
+          const theta = u * Math.PI * 2;
+          const phi = Math.acos(2 * v - 1);
+
+          x = r * Math.sin(phi) * Math.cos(theta);
+          y = r * Math.cos(phi) * 0.91; // Saturn's realistic polar flattening
+          z = r * Math.sin(phi) * Math.sin(theta);
+
+          // Atmospheric latitude banding in color gradient
+          const latBand = Math.abs(Math.cos(phi));
+          gradFactors[i] = 0.08 + latBand * 0.32;
+          accentFactors[i] = isCore ? 0.5 : (0.18 + Math.sin(phi * 10) * 0.12);
+        } else {
+          // Wide concentric rings with distinct Cassini Division gap (9.65 to 10.5)
+          let r;
+          const bandPick = Math.random();
+          if (bandPick < 0.62) {
+            // Inner C & bright B ring: 6.0 -> 9.65
+            r = 6.0 + Math.pow(Math.random(), 0.85) * 3.65;
+          } else {
+            // Outer A ring: 10.5 -> 13.8
+            r = 10.5 + Math.random() * 3.3;
+          }
+
+          const angle = Math.random() * Math.PI * 2;
+          x = Math.cos(angle) * r;
+          y = gaussianRand() * 0.14;
+          z = Math.sin(angle) * r;
+
+          const normR = (r - 6.0) / (13.8 - 6.0);
+          gradFactors[i] = 0.28 + normR * 0.72;
+          // Brighter inner B-ring edge
+          accentFactors[i] = (r > 7.4 && r < 9.5) ? 0.35 : 0.05;
+        }
+
+        // Apply iconic axial tilt around Z axis
+        const tx = x * cosTilt - y * sinTilt;
+        const ty = x * sinTilt + y * cosTilt;
+        positions[i3]     = tx;
+        positions[i3 + 1] = ty;
+        positions[i3 + 2] = z;
+      }
+      return { positions, gradFactors, accentFactors };
+    }
+
+    // 4. Torus Knot (p=3, q=5 volumetric glowing 3D ribbon/tube)
+    function generateTorusKnot(count) {
+      const positions = new Float32Array(count * 3);
+      const gradFactors = new Float32Array(count);
+      const accentFactors = new Float32Array(count);
+
+      const p = 3;
+      const q = 5;
+      const scale = 3.1;
+      const tubeRadius = 1.05;
+      const eps = 0.001;
+
+      const evalKnot = (u, out) => {
+        const r = Math.cos(q * u) + 2.35;
+        out.set(
+          r * Math.cos(p * u) * scale,
+          r * Math.sin(p * u) * scale,
+          -Math.sin(q * u) * scale * 1.45
+        );
+      };
+
+      const p0 = new THREE.Vector3();
+      const p1 = new THREE.Vector3();
+      const tangent = new THREE.Vector3();
+      const normal = new THREE.Vector3();
+      const binormal = new THREE.Vector3();
+      const up = new THREE.Vector3(0, 1, 0);
+
+      for (let i = 0; i < count; i++) {
+        const i3 = i * 3;
+        const u = Math.random() * Math.PI * 2;
+
+        evalKnot(u, p0);
+        evalKnot(u + eps, p1);
+        tangent.subVectors(p1, p0).normalize();
+
+        // Build orthonormal frame around curve tangent
+        if (Math.abs(tangent.dot(up)) > 0.95) {
+          normal.set(1, 0, 0).cross(tangent).normalize();
+        } else {
+          normal.copy(up).cross(tangent).normalize();
+        }
+        binormal.crossVectors(tangent, normal).normalize();
+
+        // Distribute radially inside tube (slightly concentrated toward glowing spine)
+        const rLocal = Math.pow(Math.random(), 0.65) * tubeRadius;
+        const angle = Math.random() * Math.PI * 2;
+        const cosA = Math.cos(angle) * rLocal;
+        const sinA = Math.sin(angle) * rLocal;
+
+        positions[i3]     = p0.x + normal.x * cosA + binormal.x * sinA;
+        positions[i3 + 1] = p0.y + normal.y * cosA + binormal.y * sinA;
+        positions[i3 + 2] = p0.z + normal.z * cosA + binormal.z * sinA;
+
+        gradFactors[i] = 0.5 + 0.5 * Math.sin(u * q);
+        accentFactors[i] = Math.max(0, 1.0 - rLocal / (tubeRadius * 0.55)) * 0.7;
+      }
+      return { positions, gradFactors, accentFactors };
+    }
+
+    // 5. Cosmic Sphere (Fibonacci lattice sphere with layered inner core)
+    function generateCosmicSphere(count) {
+      const positions = new Float32Array(count * 3);
+      const gradFactors = new Float32Array(count);
+      const accentFactors = new Float32Array(count);
+
+      const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+      const outerCount = Math.floor(count * 0.88);
+      const outerRadius = 8.4;
+
+      for (let i = 0; i < count; i++) {
+        const i3 = i * 3;
+        if (i < outerCount) {
+          // Crisp Fibonacci lattice distribution on sphere surface
+          const yNorm = 1 - (i / (outerCount - 1)) * 2; // 1 to -1
+          const rAtY = Math.sqrt(Math.max(0, 1 - yNorm * yNorm));
+          const theta = goldenAngle * i;
+
+          positions[i3]     = Math.cos(theta) * rAtY * outerRadius;
+          positions[i3 + 1] = yNorm * outerRadius;
+          positions[i3 + 2] = Math.sin(theta) * rAtY * outerRadius;
+
+          gradFactors[i] = (yNorm + 1) * 0.5;
+          // Highlight equatorial and harmonic bands
+          accentFactors[i] = Math.pow(Math.abs(Math.sin(theta * 0.25 + yNorm * 4)), 4) * 0.45;
+        } else {
+          // Luminous inner cosmic core
+          const r = Math.pow(Math.random(), 1.2) * 3.6;
+          const theta = Math.random() * Math.PI * 2;
+          const phi = Math.acos(2 * Math.random() - 1);
+
+          positions[i3]     = r * Math.sin(phi) * Math.cos(theta);
+          positions[i3 + 1] = r * Math.cos(phi);
+          positions[i3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+
+          gradFactors[i] = r / 3.6 * 0.35;
+          accentFactors[i] = 0.75;
+        }
+      }
+      return { positions, gradFactors, accentFactors };
+    }
+
+    /**
+     * =========================================================================
+     * Main Application Initialization
+     * =========================================================================
+     */
+    function initApp() {
+      const container = document.getElementById('canvas-container');
+      let renderer;
+
+      // WebGL Error Boundary
+      try {
+        renderer = new THREE.WebGLRenderer({
+          antialias: true,
+          powerPreference: 'high-performance',
+          alpha: false,
+        });
+      } catch (err) {
+        console.error('WebGL initialization failed:', err);
+        document.getElementById('webgl-error').classList.remove('hidden');
+        return;
+      }
+
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setClearColor(0x05050a, 1);
+      container.appendChild(renderer.domElement);
+
+      // Scene & Subtle Exponential Deep-Space Fog
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x05050a);
+      scene.fog = new THREE.FogExp2(0x05050a, 0.0135);
+
+      // Camera
+      const camera = new THREE.PerspectiveCamera(
+        52,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        250
+      );
+      camera.position.set(0, 7.5, 25.5);
+
+      // Smooth OrbitControls with damping
+      const controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+      controls.enablePan = false;
+      controls.minDistance = 8;
+      controls.maxDistance = 58;
+      controls.rotateSpeed = 0.75;
+      controls.zoomSpeed = 0.9;
+
+      // Precompute all 5 formations once for instant zero-lag morphing
+      const formations = {
+        galaxy:    generateSpiralGalaxy(PARTICLE_COUNT),
+        dna:       generateDNAHelix(PARTICLE_COUNT),
+        saturn:    generateSaturnRings(PARTICLE_COUNT),
+        torusKnot: generateTorusKnot(PARTICLE_COUNT),
+        sphere:    generateCosmicSphere(PARTICLE_COUNT),
+      };
+
+      // Working buffers for smooth interpolation & cursor physics
+      const currentPositions = new Float32Array(PARTICLE_COUNT * 3);
+      const basePositions    = new Float32Array(PARTICLE_COUNT * 3); // morphed positions before cursor offset
+      const hoverOffsets     = new Float32Array(PARTICLE_COUNT * 3); // real-time cursor repulsion offsets
+      const currentColors    = new Float32Array(PARTICLE_COUNT * 3);
+      const targetColors     = new Float32Array(PARTICLE_COUNT * 3);
+
+      // Initialize starting formation (Spiral Galaxy)
+      basePositions.set(formations.galaxy.positions);
+      currentPositions.set(formations.galaxy.positions);
+
+      // Compute target colors from current formation + palette
+      const tempColor = new THREE.Color();
+      function computeTargetColors(shapeKey, paletteKey, immediate = false) {
+        const { gradFactors, accentFactors } = formations[shapeKey];
+        const palette = PALETTES[paletteKey];
+
+        for (let i = 0; i < PARTICLE_COUNT; i++) {
+          const i3 = i * 3;
+          tempColor.copy(palette.primary).lerp(palette.secondary, gradFactors[i]);
+          if (accentFactors[i] > 0.01) {
+            tempColor.lerp(palette.accent, accentFactors[i]);
+          }
+          targetColors[i3]     = tempColor.r;
+          targetColors[i3 + 1] = tempColor.g;
+          targetColors[i3 + 2] = tempColor.b;
+
+          if (immediate) {
+            currentColors[i3]     = tempColor.r;
+            currentColors[i3 + 1] = tempColor.g;
+            currentColors[i3 + 2] = tempColor.b;
+          }
+        }
+      }
+      computeTargetColors(state.currentShape, state.currentPalette, true);
+
+      // Main Particle Geometry & Material
+      const particleGeometry = new THREE.BufferGeometry();
+      const positionAttr = new THREE.BufferAttribute(currentPositions, 3);
+      const colorAttr    = new THREE.BufferAttribute(currentColors, 3);
+      positionAttr.setUsage(THREE.DynamicDrawUsage);
+      colorAttr.setUsage(THREE.DynamicDrawUsage);
+
+      particleGeometry.setAttribute('position', positionAttr);
+      particleGeometry.setAttribute('color', colorAttr);
+
+      const glowTexture = createGlowTexture();
+      const particleMaterial = new THREE.PointsMaterial({
+        size: state.particleSize * 0.24,
+        map: glowTexture,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        transparent: true,
+        opacity: 0.92,
+        vertexColors: true,
+        sizeAttenuation: true,
+      });
+
+      const particleCloud = new THREE.Points(particleGeometry, particleMaterial);
+      scene.add(particleCloud);
+
+      // Subtle Distant Ambient Starfield for Cosmic Depth
+      const bgStarPos = new Float32Array(BG_STAR_COUNT * 3);
+      const bgStarCol = new Float32Array(BG_STAR_COUNT * 3);
+      for (let i = 0; i < BG_STAR_COUNT; i++) {
+        const i3 = i * 3;
+        const r = 52 + Math.random() * 75;
+        const theta = Math.random() * Math.PI * 2;
+        const phi = Math.acos(2 * Math.random() - 1);
+        bgStarPos[i3]     = r * Math.sin(phi) * Math.cos(theta);
+        bgStarPos[i3 + 1] = r * Math.cos(phi);
+        bgStarPos[i3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+
+        const brightness = 0.22 + Math.random() * 0.35;
+        bgStarCol[i3]     = brightness * (0.85 + Math.random() * 0.15);
+        bgStarCol[i3 + 1] = brightness * (0.9 + Math.random() * 0.1);
+        bgStarCol[i3 + 2] = brightness;
+      }
+      const bgStarGeo = new THREE.BufferGeometry();
+      bgStarGeo.setAttribute('position', new THREE.BufferAttribute(bgStarPos, 3));
+      bgStarGeo.setAttribute('color', new THREE.BufferAttribute(bgStarCol, 3));
+      const bgStarMat = new THREE.PointsMaterial({
+        size: 0.32,
+        map: glowTexture,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        transparent: true,
+        opacity: 0.55,
+        vertexColors: true,
+      });
+      const bgStars = new THREE.Points(bgStarGeo, bgStarMat);
+      scene.add(bgStars);
+
+      /**
+       * =======================================================================
+       * 3D Mouse-Hover Repulsion / Swirl Interaction (Desktop Raycast Plane)
+       * =======================================================================
+       */
+      const raycaster = new THREE.Raycaster();
+      const pointerNDC = new THREE.Vector2(999, 999);
+      const interactPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+      const planeNormal = new THREE.Vector3();
+      const worldHitPoint = new THREE.Vector3();
+      const localHitPoint = new THREE.Vector3();
+      let hasValidHit = false;
+
+      window.addEventListener('pointermove', (e) => {
+        // Only apply hover repulsion for mouse/pen (avoid fighting touch orbit)
+        if (e.pointerType === 'touch') return;
+        pointerNDC.x = (e.clientX / window.innerWidth) * 2 - 1;
+        pointerNDC.y = -(e.clientY / window.innerHeight) * 2 + 1;
+        state.pointerActive = true;
+      });
+
+      window.addEventListener('pointerleave', () => {
+        state.pointerActive = false;
+        hasValidHit = false;
+      });
+
+      /**
+       * =======================================================================
+       * UI Controls & Event Bindings
+       * =======================================================================
+       */
+      const elShapeIndex     = document.getElementById('active-shape-index');
+      const elShapeName      = document.getElementById('active-shape-name');
+      const shapeButtons     = document.querySelectorAll('.shape-btn');
+      const paletteButtons   = document.querySelectorAll('.palette-btn');
+      const sliderRotation   = document.getElementById('slider-rotation');
+      const valRotation      = document.getElementById('val-rotation');
+      const sliderSize       = document.getElementById('slider-size');
+      const valSize          = document.getElementById('val-size');
+      const toggleAutoMorph  = document.getElementById('toggle-automorph');
+      const toggleAutoKnob   = document.getElementById('toggle-automorph-knob');
+      const autoMorphBadge   = document.getElementById('automorph-badge');
+      const autoMorphProg    = document.getElementById('automorph-progress');
+      const btnCollapse      = document.getElementById('btn-collapse');
+      const collapseIcon     = document.getElementById('collapse-icon');
+      const panelBody        = document.getElementById('panel-body');
+      const btnZenMode       = document.getElementById('btn-zen-mode');
+      const btnZenFooter     = document.getElementById('btn-zen-footer');
+      const btnShowUI        = document.getElementById('btn-show-ui');
+      const brandBadge       = document.getElementById('brand-badge');
+      const controlPanel     = document.getElementById('control-panel');
+      const fpsValueEl       = document.getElementById('fps-value');
+      const fpsBadgeEl       = document.getElementById('fps-badge');
+      const fpsDotEl         = document.getElementById('fps-dot');
+
+      function updateShapeUI() {
+        const meta = SHAPE_META[state.currentShape];
+        elShapeIndex.textContent = meta.index;
+        elShapeName.textContent = meta.name;
+
+        shapeButtons.forEach((btn) => {
+          const active = btn.dataset.shape === state.currentShape;
+          btn.className = active
+            ? 'shape-btn group flex items-center justify-between w-full px-3 py-2 rounded-xl text-left text-xs font-medium border transition-all duration-200 bg-cyan-500/15 border-cyan-400/50 text-white shadow-[0_0_18px_rgba(0,240,255,0.16)]'
+            : 'shape-btn group flex items-center justify-between w-full px-3 py-2 rounded-xl text-left text-xs font-medium border transition-all duration-200 bg-white/[0.03] border-white/[0.06] text-slate-300 hover:bg-white/[0.08] hover:text-white hover:border-white/15';
+        });
+      }
+
+      function updatePaletteUI() {
+        paletteButtons.forEach((btn) => {
+          const active = btn.dataset.palette === state.currentPalette;
+          btn.className = active
+            ? 'palette-btn flex items-center gap-2 px-2.5 py-2 rounded-xl text-left text-[11px] font-medium border transition-all duration-200 bg-white/12 border-cyan-400/55 text-white shadow-[0_0_14px_rgba(0,240,255,0.14)]'
+            : 'palette-btn flex items-center gap-2 px-2.5 py-2 rounded-xl text-left text-[11px] font-medium border transition-all duration-200 bg-white/[0.03] border-white/[0.06] text-slate-300 hover:bg-white/[0.08] hover:text-white';
+        });
+      }
+
+      function selectShape(shapeKey) {
+        if (!formations[shapeKey]) return;
+        state.currentShape = shapeKey;
+        state.autoMorphTimer = 0;
+        autoMorphProg.style.width = '0%';
+        computeTargetColors(state.currentShape, state.currentPalette, false);
+        updateShapeUI();
+      }
+
+      function selectPalette(paletteKey) {
+        if (!PALETTES[paletteKey]) return;
+        state.currentPalette = paletteKey;
+        computeTargetColors(state.currentShape, state.currentPalette, false);
+        updatePaletteUI();
+      }
+
+      function setAutoMorph(enabled) {
+        state.autoMorph = enabled;
+        state.autoMorphTimer = 0;
+        toggleAutoMorph.setAttribute('aria-checked', String(enabled));
+
+        if (enabled) {
+          toggleAutoMorph.classList.remove('bg-white/10');
+          toggleAutoMorph.classList.add('bg-cyan-500/70', 'border-cyan-400/60');
+          toggleAutoKnob.classList.remove('translate-x-0.5', 'bg-slate-300');
+          toggleAutoKnob.classList.add('translate-x-[18px]', 'bg-white');
+          autoMorphBadge.classList.remove('hidden');
+        } else {
+          toggleAutoMorph.classList.add('bg-white/10');
+          toggleAutoMorph.classList.remove('bg-cyan-500/70', 'border-cyan-400/60');
+          toggleAutoKnob.classList.add('translate-x-0.5', 'bg-slate-300');
+          toggleAutoKnob.classList.remove('translate-x-[18px]', 'bg-white');
+          autoMorphBadge.classList.add('hidden');
+          autoMorphProg.style.width = '0%';
+        }
+      }
+
+      function setPanelCollapsed(collapsed) {
+        state.panelCollapsed = collapsed;
+        if (collapsed) {
+          panelBody.classList.add('collapsed');
+          collapseIcon.style.transform = 'rotate(-180deg)';
+        } else {
+          panelBody.classList.remove('collapsed');
+          collapseIcon.style.transform = 'rotate(0deg)';
+        }
+      }
+
+      function setZenMode(enabled) {
+        state.zenMode = enabled;
+        if (enabled) {
+          brandBadge.classList.add('hud-hidden');
+          controlPanel.classList.add('hud-hidden');
+          btnShowUI.classList.remove('hud-hidden');
+        } else {
+          brandBadge.classList.remove('hud-hidden');
+          controlPanel.classList.remove('hud-hidden');
+          btnShowUI.classList.add('hud-hidden');
+        }
+      }
+
+      // Wire up DOM events
+      shapeButtons.forEach((btn) => {
+        btn.addEventListener('click', () => selectShape(btn.dataset.shape));
+      });
+
+      paletteButtons.forEach((btn) => {
+        btn.addEventListener('click', () => selectPalette(btn.dataset.palette));
+      });
+
+      toggleAutoMorph.addEventListener('click', () => setAutoMorph(!state.autoMorph));
+
+      sliderRotation.addEventListener('input', (e) => {
+        state.rotationSpeed = parseFloat(e.target.value);
+        valRotation.textContent = `${state.rotationSpeed.toFixed(1)}x`;
+      });
+
+      sliderSize.addEventListener('input', (e) => {
+        state.particleSize = parseFloat(e.target.value);
+        valSize.textContent = state.particleSize.toFixed(1);
+        particleMaterial.size = state.particleSize * 0.24;
+      });
+
+      btnCollapse.addEventListener('click', () => setPanelCollapsed(!state.panelCollapsed));
+      btnZenMode.addEventListener('click', () => setZenMode(true));
+      btnZenFooter.addEventListener('click', () => setZenMode(true));
+      btnShowUI.addEventListener('click', () => setZenMode(false));
+
+      // Keyboard Shortcuts: 1-5 for shapes, H for Zen Mode
+      window.addEventListener('keydown', (e) => {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+        const key = e.key.toLowerCase();
+        if (key === 'h') {
+          setZenMode(!state.zenMode);
+        } else if (key >= '1' && key <= '5') {
+          const idx = parseInt(key, 10) - 1;
+          selectShape(SHAPE_ORDER[idx]);
+        }
+      });
+
+      // Responsive Resize Handler
+      window.addEventListener('resize', () => {
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+        camera.aspect = width / height;
+        camera.updateProjectionMatrix();
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        renderer.setSize(width, height);
+      });
+
+      // Initial UI sync & mobile auto-collapse
+      updateShapeUI();
+      updatePaletteUI();
+      if (window.innerWidth < 640) {
+        setPanelCollapsed(true);
+      }
+
+      /**
+       * =======================================================================
+       * Main 60FPS Animation Loop
+       * =======================================================================
+       */
+      const clock = new THREE.Clock();
+      let elapsedTime = 0;
+
+      // FPS Tracking
+      let fpsFrames = 0;
+      let fpsAccum = 0;
+
+      function animate() {
+        requestAnimationFrame(animate);
+
+        // Clamp delta time to prevent jumps on tab switch
+        const dt = Math.min(clock.getDelta(), 0.05);
+        elapsedTime += dt;
+
+        // 1. Live FPS Counter (updated every 0.4s)
+        fpsFrames++;
+        fpsAccum += dt;
+        if (fpsAccum >= 0.4) {
+          const fps = Math.round(fpsFrames / fpsAccum);
+          fpsValueEl.textContent = fps;
+          if (fps >= 50) {
+            fpsBadgeEl.className = 'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-500/25';
+            fpsDotEl.className = 'w-1.5 h-1.5 rounded-full bg-emerald-400';
+          } else if (fps >= 30) {
+            fpsBadgeEl.className = 'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-amber-500/15 text-amber-300 border border-amber-500/25';
+            fpsDotEl.className = 'w-1.5 h-1.5 rounded-full bg-amber-400';
+          } else {
+            fpsBadgeEl.className = 'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-rose-500/15 text-rose-300 border border-rose-500/25';
+            fpsDotEl.className = 'w-1.5 h-1.5 rounded-full bg-rose-400';
+          }
+          fpsFrames = 0;
+          fpsAccum = 0;
+        }
+
+        // 2. Auto-Morph Timer
+        if (state.autoMorph) {
+          state.autoMorphTimer += dt;
+          const pct = Math.min(100, (state.autoMorphTimer / AUTO_MORPH_INTERVAL) * 100);
+          autoMorphProg.style.width = `${pct}%`;
+
+          if (state.autoMorphTimer >= AUTO_MORPH_INTERVAL) {
+            const nextIdx = (SHAPE_ORDER.indexOf(state.currentShape) + 1) % SHAPE_ORDER.length;
+            selectShape(SHAPE_ORDER[nextIdx]);
+          }
+        }
+
+        // 3. Smooth OrbitControls & Auto-Rotation
+        controls.update();
+        if (state.rotationSpeed > 0) {
+          particleCloud.rotation.y += dt * 0.22 * state.rotationSpeed;
+          bgStars.rotation.y -= dt * 0.015 * state.rotationSpeed;
+        }
+
+        // 4. Raycast Cursor onto Camera-Facing Plane through Origin
+        hasValidHit = false;
+        if (state.pointerActive) {
+          camera.getWorldDirection(planeNormal).negate();
+          interactPlane.setFromNormalAndCoplanarPoint(planeNormal, particleCloud.position);
+          raycaster.setFromCamera(pointerNDC, camera);
+          if (raycaster.ray.intersectPlane(interactPlane, worldHitPoint)) {
+            localHitPoint.copy(worldHitPoint);
+            particleCloud.worldToLocal(localHitPoint);
+            hasValidHit = true;
+          }
+        }
+
+        // 5. Exponential Lerp for Positions, Colors, Cosmic Pulse & Cursor Physics
+        const targetPosArr = formations[state.currentShape].positions;
+        const posLerp = 1 - Math.exp(-3.4 * dt);
+        const colLerp = 1 - Math.exp(-4.2 * dt);
+        const offsetDecay = Math.exp(-6.5 * dt);
+
+        const isSphere = state.currentShape === 'sphere';
+        const interactRadius = 4.6;
+        const interactRadiusSq = interactRadius * interactRadius;
+        const hx = localHitPoint.x;
+        const hy = localHitPoint.y;
+        const hz = localHitPoint.z;
+
+        for (let i = 0; i < PARTICLE_COUNT; i++) {
+          const i3 = i * 3;
+
+          // Target coordinates (with harmonic breathing pulse on Cosmic Sphere)
+          let tx = targetPosArr[i3];
+          let ty = targetPosArr[i3 + 1];
+          let tz = targetPosArr[i3 + 2];
+
+          if (isSphere) {
+            const wave = 1.0 + 0.055 * Math.sin(elapsedTime * 2.1 + ty * 0.45) * Math.cos(tx * 0.35 - elapsedTime * 1.3);
+            tx *= wave;
+            ty *= wave;
+            tz *= wave;
+          }
+
+          // Smooth morphing of base position
+          let bx = basePositions[i3]     += (tx - basePositions[i3]) * posLerp;
+          let by = basePositions[i3 + 1] += (ty - basePositions[i3 + 1]) * posLerp;
+          let bz = basePositions[i3 + 2] += (tz - basePositions[i3 + 2]) * posLerp;
+
+          // Real-time 3D cursor repulsion + gentle swirl
+          let ox = hoverOffsets[i3] * offsetDecay;
+          let oy = hoverOffsets[i3 + 1] * offsetDecay;
+          let oz = hoverOffsets[i3 + 2] * offsetDecay;
+
+          if (hasValidHit) {
+            const dx = (bx + ox) - hx;
+            const dy = (by + oy) - hy;
+            const dz = (bz + oz) - hz;
+            const distSq = dx * dx + dy * dy + dz * dz;
+
+            if (distSq < interactRadiusSq && distSq > 0.0001) {
+              const dist = Math.sqrt(distSq);
+              const falloff = (1 - dist / interactRadius);
+              const strength = falloff * falloff * 2.4 * dt * 12;
+              const invDist = 1 / dist;
+
+              // Radial push + subtle tangential swirl
+              ox += (dx * invDist - dz * invDist * 0.28) * strength;
+              oy += (dy * invDist) * strength;
+              oz += (dz * invDist + dx * invDist * 0.28) * strength;
+            }
+          }
+
+          hoverOffsets[i3]     = ox;
+          hoverOffsets[i3 + 1] = oy;
+          hoverOffsets[i3 + 2] = oz;
+
+          currentPositions[i3]     = bx + ox;
+          currentPositions[i3 + 1] = by + oy;
+          currentPositions[i3 + 2] = bz + oz;
+
+          // Smooth color palette interpolation
+          currentColors[i3]     += (targetColors[i3]     - currentColors[i3])     * colLerp;
+          currentColors[i3 + 1] += (targetColors[i3 + 1] - currentColors[i3 + 1]) * colLerp;
+          currentColors[i3 + 2] += (targetColors[i3 + 2] - currentColors[i3 + 2]) * colLerp;
+        }
+
+        positionAttr.needsUpdate = true;
+        colorAttr.needsUpdate = true;
+
+        renderer.render(scene, camera);
+      }
+
+      // Start the animation loop
+      animate();
+    }
+
+    // Boot cleanly once DOM & resources are ready
+    window.addEventListener('load', initApp);
+  </script>
+</body>
+</html>
